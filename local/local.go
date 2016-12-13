@@ -2,6 +2,7 @@ package local
 
 import (
 	"sync"
+	"time"
 	"github.com/DeanThompson/syncmap"
 	"github.com/hectane/go-nonblockingchan"
 	"github.com/bixi/linked/llist"
@@ -48,7 +49,21 @@ func newLocalBroker(pubsub *localPubSub, key string) *localBroker {
 				broker.bgCommandList.Swap(broker.commandList)
 				broker.Unlock()
 				if (broker.bgCommandList.Length() == 0) {
-					<-broker.commandChan
+					if (broker.subscribers.Length() == 0) {
+						select {
+						case <-broker.commandChan:
+							break;
+						case <-time.After(time.Second):
+							broker.disposedLock.Lock()
+							broker.disposed = true
+							broker.pubsub.remove(broker.key)
+							broker.disposedLock.Unlock()
+							return
+							break;
+						}
+					} else {
+						<-broker.commandChan
+					}
 				} else {
 					break;
 				}
