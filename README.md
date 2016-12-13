@@ -9,7 +9,7 @@ $ go get github.com/bixi/hub
 
 ### example
 ```go
-pubsub := hub.NewLocalPubSub()
+pubsub := local.NewPubSub()
 subject := pubsub.Subject("Hello")
 
 // publish
