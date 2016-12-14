@@ -57,9 +57,14 @@ func newLocalBroker(pubsub *localPubSub, key string) *localBroker {
 							break
 						case <-time.After(time.Second):
 							broker.disposedLock.Lock()
+							defer broker.disposedLock.Unlock()
+							broker.Lock()
+							defer broker.Unlock()
+							if broker.commandList.Length() != 0 {
+								break
+							}
 							broker.disposed = true
 							broker.pubsub.remove(broker.key)
-							broker.disposedLock.Unlock()
 							break Exit
 						}
 					} else {
@@ -90,19 +95,15 @@ func newLocalBroker(pubsub *localPubSub, key string) *localBroker {
 					sub := s.(*localSubscriber)
 					broker.subscribers.Remove(sub)
 					close(sub.channel.Send)
-					if broker.subscribers.Length() == 0 {
-						broker.disposedLock.Lock()
-						broker.disposed = true
-						broker.pubsub.remove(broker.key)
-						broker.disposedLock.Unlock()
-						return
-					}
 					break
 				case stopCommand:
 					data, _ := command.Data()
 					c := data.(chan bool)
+					broker.disposedLock.Lock()
+					defer broker.disposedLock.Unlock()
 					broker.Lock()
 					defer broker.Unlock()
+
 					s := broker.subscribers.Head()
 					for s != nil {
 						sub := s.(*localSubscriber)

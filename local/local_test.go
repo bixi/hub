@@ -120,6 +120,7 @@ func TestLocalPubSub(t *testing.T) {
 			subFunc := func(count int) {
 				s := ps.Subject(fmt.Sprintf("Ants%v", count%20))
 				sub := s.Subscribe()
+				c <- true
 				for {
 					<-sub.Receive()
 				}
@@ -128,7 +129,7 @@ func TestLocalPubSub(t *testing.T) {
 				go subFunc(i)
 				go pubFunc(i)
 			}
-			for range iter.N(200) {
+			for range iter.N(400) {
 				<-c
 			}
 			Convey("Then the pubsub should contain no broker after stopped.", func() {
