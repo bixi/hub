@@ -3,18 +3,19 @@ package local
 import (
 	"sync"
 	"time"
+
 	"github.com/DeanThompson/syncmap"
-	"github.com/hectane/go-nonblockingchan"
+	"github.com/bixi/hub"
 	"github.com/bixi/linked/llist"
 	"github.com/bixi/linked/node"
-	. "github.com/bixi/hub"
+	"github.com/hectane/go-nonblockingchan"
 )
 
 const (
-	publishCommand = 0
-	addSubCommand = 1
+	publishCommand   = 0
+	addSubCommand    = 1
 	removeSubCommand = 2
-	stopCommand = 3
+	stopCommand      = 3
 )
 
 type brokerCommand struct {
@@ -43,29 +44,29 @@ func newLocalBroker(pubsub *localPubSub, key string) *localBroker {
 	broker.bgCommandList = &llist.List{}
 	broker.commandChan = make(chan bool)
 	go func() {
+	Exit:
 		for {
 			for {
 				broker.Lock()
 				broker.bgCommandList.Swap(broker.commandList)
 				broker.Unlock()
-				if (broker.bgCommandList.Length() == 0) {
-					if (broker.subscribers.Length() == 0) {
+				if broker.bgCommandList.Length() == 0 {
+					if broker.subscribers.Length() == 0 {
 						select {
 						case <-broker.commandChan:
-							break;
+							break
 						case <-time.After(time.Second):
 							broker.disposedLock.Lock()
 							broker.disposed = true
 							broker.pubsub.remove(broker.key)
 							broker.disposedLock.Unlock()
-							return
-							break;
+							break Exit
 						}
 					} else {
 						<-broker.commandChan
 					}
 				} else {
-					break;
+					break
 				}
 			}
 
@@ -79,24 +80,24 @@ func newLocalBroker(pubsub *localPubSub, key string) *localBroker {
 						s.(*localSubscriber).channel.Send <- message
 						s, _, _ = s.Next()
 					}
-					break;
+					break
 				case addSubCommand:
 					s, _ := command.Data()
 					broker.subscribers.Append(s.(*localSubscriber))
-					break;
+					break
 				case removeSubCommand:
 					s, _ := command.Data()
 					sub := s.(*localSubscriber)
 					broker.subscribers.Remove(sub)
 					close(sub.channel.Send)
-					if (broker.subscribers.Length() == 0) {
+					if broker.subscribers.Length() == 0 {
 						broker.disposedLock.Lock()
 						broker.disposed = true
 						broker.pubsub.remove(broker.key)
 						broker.disposedLock.Unlock()
 						return
 					}
-					break;
+					break
 				case stopCommand:
 					data, _ := command.Data()
 					c := data.(chan bool)
@@ -111,11 +112,10 @@ func newLocalBroker(pubsub *localPubSub, key string) *localBroker {
 					broker.subscribers.Clear()
 					broker.disposed = true
 					c <- true
-					return
-					break;
+					break Exit
 				}
 				c, _, _ := command.Next()
-				if (c == nil) {
+				if c == nil {
 					command = nil
 				} else {
 					command = c.(*brokerCommand)
@@ -133,9 +133,9 @@ func (broker *localBroker) sendCommand(command *brokerCommand) {
 	broker.Unlock()
 	select {
 	case broker.commandChan <- true:
-		break;
+		break
 	default:
-		break;
+		break
 	}
 }
 
@@ -146,14 +146,14 @@ func (broker *localBroker) publish(message interface{}) {
 	broker.sendCommand(command)
 }
 
-func (broker *localBroker) subscribe() Subscriber {
+func (broker *localBroker) subscribe() hub.Subscriber {
 	subscriber := newLocalSubscriber()
 	broker.addSubscriber(subscriber)
 	return subscriber
 }
 
-func (broker *localBroker) addSubscriber(subscriber*localSubscriber) {
-	if (subscriber.broker == nil) {
+func (broker *localBroker) addSubscriber(subscriber *localSubscriber) {
+	if subscriber.broker == nil {
 		subscriber.broker = broker
 
 		command := &brokerCommand{}
@@ -164,7 +164,7 @@ func (broker *localBroker) addSubscriber(subscriber*localSubscriber) {
 }
 
 func (broker *localBroker) removeSubscriber(subscriber *localSubscriber) {
-	if (subscriber.broker == broker) {
+	if subscriber.broker == broker {
 		subscriber.broker = nil
 		command := &brokerCommand{}
 		command.commandType = removeSubCommand
@@ -199,7 +199,7 @@ func (subscriber *localSubscriber) Receive() <-chan interface{} {
 }
 
 func (subscriber *localSubscriber) Close() {
-	if (subscriber.broker != nil) {
+	if subscriber.broker != nil {
 		subscriber.broker.removeSubscriber(subscriber)
 	}
 }
@@ -212,7 +212,7 @@ type localSubject struct {
 
 func (ls *localSubject) Publish(message interface{}) {
 	ls.broker.disposedLock.RLock()
-	if (ls.broker.disposed) {
+	if ls.broker.disposed {
 		ls.broker.disposedLock.RUnlock()
 		ls.broker = ls.pubsub.broker(ls.key)
 		ls.Publish(message)
@@ -222,16 +222,15 @@ func (ls *localSubject) Publish(message interface{}) {
 	}
 }
 
-func (ls *localSubject) Subscribe() Subscriber {
+func (ls *localSubject) Subscribe() hub.Subscriber {
 	ls.broker.disposedLock.RLock()
-	if (ls.broker.disposed) {
+	if ls.broker.disposed {
 		ls.broker.disposedLock.RUnlock()
 		ls.broker = ls.pubsub.broker(ls.key)
 		return ls.Subscribe()
-	} else {
-		defer ls.broker.disposedLock.RUnlock()
-		return ls.broker.subscribe()
 	}
+	defer ls.broker.disposedLock.RUnlock()
+	return ls.broker.subscribe()
 }
 
 type localPubSub struct {
@@ -239,20 +238,21 @@ type localPubSub struct {
 	sync.Mutex
 }
 
-func NewPubSub() PubSub {
+// NewPubSub returns a new Local PubSub.
+func NewPubSub() hub.PubSub {
 	var lps localPubSub
 	lps.brokers = syncmap.New()
 	return &lps
 }
 
-func (lps *localPubSub) Subject(key string) Subject {
+func (lps *localPubSub) Subject(key string) hub.Subject {
 	ls := &localSubject{}
 	ls.broker = lps.broker(key)
 	ls.pubsub = lps
 	return ls
 }
 
-func (lps *localPubSub) Stop() <- chan bool {
+func (lps *localPubSub) Stop() <-chan bool {
 	lps.Lock()
 	defer lps.Unlock()
 	iter := lps.brokers.IterItems()
@@ -281,15 +281,13 @@ func (lps *localPubSub) remove(key string) {
 func (lps *localPubSub) broker(key string) *localBroker {
 	if s, ok := lps.brokers.Get(key); ok {
 		return s.(*localBroker)
-	} else {
-		lps.Lock()
-		defer lps.Unlock()
-		if s, ok = lps.brokers.Get(key); ok {
-			return s.(*localBroker)
-		}
-		s = newLocalBroker(lps, key)
-		lps.brokers.Set(key, s)
+	}
+	lps.Lock()
+	defer lps.Unlock()
+	if s, ok := lps.brokers.Get(key); ok {
 		return s.(*localBroker)
 	}
+	s := newLocalBroker(lps, key)
+	lps.brokers.Set(key, s)
+	return s
 }
-

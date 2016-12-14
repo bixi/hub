@@ -1,11 +1,12 @@
 package local
 
 import (
-	"testing"
 	"fmt"
-	. "github.com/smartystreets/goconvey/convey"
+	"testing"
+
 	. "github.com/bixi/hub"
 	"github.com/bradfitz/iter"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestLocalPubSub(t *testing.T) {
@@ -81,12 +82,12 @@ func TestLocalPubSub(t *testing.T) {
 		Convey("When lots of publisher and subscribers done.", func() {
 			c1 := make(chan bool)
 			c2 := make(chan bool)
-			pubFunc := func (count int) {
+			pubFunc := func(count int) {
 				s := ps.Subject("Ants")
 				s.Publish(count)
 				c1 <- true
 			}
-			subFunc := func (count int) {
+			subFunc := func(count int) {
 				s := ps.Subject("Ants")
 				sub := s.Subscribe()
 				sub.Close()
@@ -97,8 +98,8 @@ func TestLocalPubSub(t *testing.T) {
 				go pubFunc(i)
 			}
 			for range iter.N(100) {
-				<- c1
-				<- c2
+				<-c1
+				<-c2
 			}
 			Convey("Then the pubsub should still running normally.", func() {
 				s := ps.Subject("Ants")
@@ -111,16 +112,16 @@ func TestLocalPubSub(t *testing.T) {
 		})
 		Convey("When lots of publisher and subscribers running.", func() {
 			c := make(chan bool)
-			pubFunc := func (count int) {
-				s := ps.Subject(fmt.Sprintf("Ants%v", count % 20))
+			pubFunc := func(count int) {
+				s := ps.Subject(fmt.Sprintf("Ants%v", count%20))
 				s.Publish(count)
 				c <- true
 			}
-			subFunc := func (count int) {
-				s := ps.Subject(fmt.Sprintf("Ants%v", count % 20))
+			subFunc := func(count int) {
+				s := ps.Subject(fmt.Sprintf("Ants%v", count%20))
 				sub := s.Subscribe()
 				for {
-					<- sub.Receive()
+					<-sub.Receive()
 				}
 			}
 			for i := range iter.N(200) {
@@ -128,7 +129,7 @@ func TestLocalPubSub(t *testing.T) {
 				go pubFunc(i)
 			}
 			for range iter.N(200) {
-				<- c
+				<-c
 			}
 			Convey("Then the pubsub should contain no broker after stopped.", func() {
 				done := ps.Stop()
@@ -138,4 +139,3 @@ func TestLocalPubSub(t *testing.T) {
 		})
 	})
 }
-
