@@ -4,10 +4,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanThompson/syncmap"
 	"github.com/bixi/hub"
 	"github.com/bixi/linked/llist"
 	"github.com/bixi/linked/node"
+	"github.com/bixi/syncmap"
 	"github.com/hectane/go-nonblockingchan"
 )
 
@@ -43,6 +43,10 @@ func newLocalBroker(pubsub *localPubSub, key string) *localBroker {
 	broker.commandList = &llist.List{}
 	broker.bgCommandList = &llist.List{}
 	broker.commandChan = make(chan bool)
+	return broker
+}
+
+func (broker *localBroker) run() {
 	go func() {
 	Exit:
 		for {
@@ -125,7 +129,6 @@ func newLocalBroker(pubsub *localPubSub, key string) *localBroker {
 			broker.bgCommandList.Clear()
 		}
 	}()
-	return broker
 }
 
 func (broker *localBroker) sendCommand(command *brokerCommand) {
@@ -283,12 +286,8 @@ func (lps *localPubSub) broker(key string) *localBroker {
 	if s, ok := lps.brokers.Get(key); ok {
 		return s.(*localBroker)
 	}
-	lps.Lock()
-	defer lps.Unlock()
-	if s, ok := lps.brokers.Get(key); ok {
-		return s.(*localBroker)
-	}
 	s := newLocalBroker(lps, key)
-	lps.brokers.Set(key, s)
+	s = lps.brokers.GetDefault(key, s).(*localBroker)
+	s.run()
 	return s
 }

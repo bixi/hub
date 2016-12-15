@@ -2,6 +2,7 @@ package hub
 
 import (
 	"testing"
+
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -11,7 +12,7 @@ func TestEmptyStopper(t *testing.T) {
 		Convey("When call Stop", func() {
 			c := stopper.Stop()
 			Convey("Then chan should return immediatly", func() {
-				b := <- c
+				b := <-c
 				So(b, ShouldEqual, false)
 			})
 		})
