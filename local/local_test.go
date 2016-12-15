@@ -68,7 +68,11 @@ func TestLocalPubSub(t *testing.T) {
 				planet := ps.Subject("Planet").(*localSubject)
 				for range iter.N(10) {
 					planet1 := (<-c).(*localSubject)
-					So(*planet == *planet1, ShouldBeTrue)
+					So(planet.key, ShouldEqual, planet1.key)
+					So(planet.pubsub, ShouldEqual, planet1.pubsub)
+					if !planet.broker.disposed && !planet1.broker.disposed {
+						So(planet.broker, ShouldEqual, planet1.broker)
+					}
 				}
 			})
 			Convey("Then get Subject 'Other' should return the other object", func() {

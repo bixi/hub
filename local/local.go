@@ -61,12 +61,12 @@ func (broker *localBroker) run() {
 						case <-time.After(time.Second):
 							broker.Lock()
 							defer broker.Unlock()
-							if broker.commandList.Length() != 0 {
-								break
+							if broker.commandList.Length() == 0 {
+								broker.disposed = true
+								broker.pubsub.remove(broker.key)
+								break Exit
 							}
-							broker.disposed = true
-							broker.pubsub.remove(broker.key)
-							break Exit
+							break
 						}
 					} else {
 						<-broker.commandChan
@@ -161,15 +161,11 @@ func (broker *localBroker) subscribe() (hub.Subscriber, bool) {
 }
 
 func (broker *localBroker) addSubscriber(subscriber *localSubscriber) bool {
-	if subscriber.broker == nil {
-		subscriber.broker = broker
-
-		command := &brokerCommand{}
-		command.commandType = addSubCommand
-		command.SetData(subscriber)
-		return broker.sendCommand(command)
-	}
-	return false
+	subscriber.broker = broker
+	command := &brokerCommand{}
+	command.commandType = addSubCommand
+	command.SetData(subscriber)
+	return broker.sendCommand(command)
 }
 
 func (broker *localBroker) removeSubscriber(subscriber *localSubscriber) {
