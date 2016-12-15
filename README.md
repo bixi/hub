@@ -17,6 +17,7 @@ subject.Publish("Aloha")
 
 // subscribe (usually in another goroutine)
 subscriber := subject.Subscribe()
+defer subscriber.Close()
 for {
     message := <- subscriber.Receive()
     fmt.Printf("%v\n", message)
