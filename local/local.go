@@ -287,7 +287,9 @@ func (lps *localPubSub) broker(key string) *localBroker {
 		return s.(*localBroker)
 	}
 	s := newLocalBroker(lps, key)
-	s = lps.brokers.GetDefault(key, s).(*localBroker)
-	s.run()
-	return s
+	v := lps.brokers.GetDefault(key, s).(*localBroker)
+	if s == v {
+		s.run()
+	}
+	return v
 }
